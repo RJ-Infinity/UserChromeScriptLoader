@@ -8,28 +8,25 @@
 
 /* derived from https://www.reddit.com/r/firefox/comments/kilmm2/ and https://github.com/alice0775/userChrome.js*/
 
-
-
-function readFile(aFile){
-	// gets the data in the passed in file
-	// courtesy of https://github.com/alice0775/userChrome.js
-	var stream = Components.classes[
-		"@mozilla.org/network/file-input-stream;1"
-	].createInstance(Components.interfaces.nsIFileInputStream);
-	stream.init(aFile, 0x01, 0, 0);
-
-	var cvstream = Components.classes[
-		"@mozilla.org/intl/converter-input-stream;1"
-	].createInstance(Components.interfaces.nsIConverterInputStream);
-	cvstream.init(stream, "UTF-8", 1024, Components.interfaces.nsIConverterInputStream.DEFAULT_REPLACEMENT_CHARACTER);
+(async function(){
+	function readFile(aFile){
+		// gets the data in the passed in file
+		// courtesy of https://github.com/alice0775/userChrome.js
+		var stream = Components.classes[
+			"@mozilla.org/network/file-input-stream;1"
+		].createInstance(Components.interfaces.nsIFileInputStream);
+		stream.init(aFile, 0x01, 0, 0);
 	
-	var content = "", data = {};
-	while (cvstream.readString(4096, data)) { content += data.value; }
-	cvstream.close();
-	return content;
-}
-
-async function loader(){
+		var cvstream = Components.classes[
+			"@mozilla.org/intl/converter-input-stream;1"
+		].createInstance(Components.interfaces.nsIConverterInputStream);
+		cvstream.init(stream, "UTF-8", 1024, Components.interfaces.nsIConverterInputStream.DEFAULT_REPLACEMENT_CHARACTER);
+		
+		var content = "", data = {};
+		while (cvstream.readString(4096, data)) { content += data.value; }
+		cvstream.close();
+		return content;
+	}
 	try {
 		// load the modules
 		const { ConsoleAPI } = ChromeUtils.importESModule("resource://gre/modules/Console.sys.mjs");
@@ -49,7 +46,7 @@ async function loader(){
 		// get the file "RJAutoConfig.json"
 		var RJAutoConfigFile = files.filter(f=>f.displayName=="RJAutoConfig.json");
 		if (RJAutoConfigFile.length==0){
-			console.warn(
+			console.error(
 				"No RJAutoConfig.json in the folder '"+
 				Services.dirsvc.get("UAppData", Components.interfaces.nsIFile).path+
 				"' no extra js files will be loaded."
@@ -62,7 +59,7 @@ async function loader(){
 		try{
 			RJAutoConfig = readFile(RJAutoConfigFile);
 		}catch(ex){
-			console.warn(
+			console.error(
 				"Error reading the file '"+
 				RJAutoConfigFile.path+
 				"' no extra js files will be loaded. bellow is the exeption\n"+ex
@@ -73,7 +70,7 @@ async function loader(){
 		try{
 			RJAutoConfig = JSON.parse(RJAutoConfig);
 		}catch(ex){
-			console.warn(
+			console.error(
 				"Error parsing the file '"+
 				RJAutoConfigFile.path+
 				"' no extra js files will be loaded. bellow is the exeption\n"+ex
@@ -82,29 +79,29 @@ async function loader(){
 		}
 
 		if (!("dir" in RJAutoConfig)){
-			console.warn("RJAutoConfig.json missing the dir property "+
+			console.error("RJAutoConfig.json missing the dir property "+
 			"no extra js files will be loaded.");
 			return;
 		}
 		if (!(RJAutoConfig.dir.constructor == String)){
-			console.warn("RJAutoConfig.json's dir property must be a string"+
+			console.error("RJAutoConfig.json's dir property must be a string"+
 			"no extra js files will be loaded.");
 			return;
 		}
 		if (!("files" in RJAutoConfig)){
-			console.warn("RJAutoConfig.json missing the files property "+
+			console.error("RJAutoConfig.json missing the files property "+
 			"no extra js files will be loaded.");
 			return;
 		}
 		if (!(RJAutoConfig.files.constructor == Array)){
-			console.warn("RJAutoConfig.json's files property must be a array"+
+			console.error("RJAutoConfig.json's files property must be a array"+
 			"no extra js files will be loaded.");
 			return;
 		}
 
 		RJAutoConfigDir = files.filter(f=>f.displayName===RJAutoConfig.dir);
 		if (RJAutoConfigDir.length==0){
-			console.warn(
+			console.error(
 				"the directory '"+
 				RJAutoConfig.dir+
 				"' specified in RJAutoConfig.json was not found in the folder '"+
@@ -114,7 +111,7 @@ async function loader(){
 			return;
 		}
 		if (!RJAutoConfigDir[0].isDirectory()){
-			console.warn(
+			console.error(
 				"the location '"+
 				RJAutoConfig.dir+
 				"' specified in RJAutoConfig.json must be a directory. "+
@@ -122,11 +119,21 @@ async function loader(){
 			);
 			return;
 		}
+		// get the RJAutoConfig dir object
 		RJAutoConfigDir = RJAutoConfigDir[0].QueryInterface(Components.interfaces.nsIFile).directoryEntries;
 		files = [];
 		while (RJAutoConfigDir.hasMoreElements())
 		{files.push(RJAutoConfigDir.getNext().QueryInterface(Components.interfaces.nsIFile));}
-		
+
+		files = files.filter(f=>RJAutoConfig.files.includes(f.displayName));
+		RJAutoConfig.files.filter(
+			file=>!files.map(f=>f.displayName).includes(file)
+		).forEach(file=>console.warn(
+			"the file '"+
+			file+
+			"' specified in RJAutoConfig.json was not found.\n"+
+			"skipping the file."
+		));
 		function ConfigJS() {Services.obs.addObserver(this, "chrome-document-global-created", false);}
 		ConfigJS.prototype = {
 			observe: function (aSubject) {
@@ -134,27 +141,24 @@ async function loader(){
 			},
 			handleEvent: function (aEvent) {
 				if (!aEvent.originalTarget.defaultView._gBrowser){return;}
-				
-				files.filter(f=>f.displayName in RJAutoConfig.files).forEach(
-					file=>ScriptLoader.loadSubScript(
-						FileProtocolHandler.getURLSpecFromActualFile(file),
-						aEvent.originalTarget.defaultView
-					)
+				files.forEach(
+					file=>{
+						ScriptLoader.loadSubScript(
+							FileProtocolHandler.getURLSpecFromActualFile(file),
+							aEvent.originalTarget.defaultView
+						);
+						console.log("loaded file ",file.displayName);
+					}
 				);
 			}
 		};
 		if (!Services.appinfo.inSafeMode) { new ConfigJS(); }
 	} catch (ex) {
-		(
-			new (ChromeUtils.importESModule(
-				"resource://gre/modules/Console.sys.mjs"
-			)).ConsoleAPI({maxLogLevel:false})
-		).error(ex);
+		(new (ChromeUtils.importESModule(
+			"resource://gre/modules/Console.sys.mjs"
+		)).ConsoleAPI({maxLogLevel:false})).error(ex);
 	};
-}
-loader();
-
-
+})();
 
 // var newTabBrowser = gBrowser.getBrowserForTab(gBrowser.selectedTab);
 // newTabBrowser.addEventListener("load", function() {
