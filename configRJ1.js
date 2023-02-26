@@ -9,23 +9,47 @@
 /* derived from https://www.reddit.com/r/firefox/comments/kilmm2/ and https://github.com/alice0775/userChrome.js*/
 
 (async function(){
-	function readFile(aFile){
+	function readFile(file){
 		// gets the data in the passed in file
-		// courtesy of https://github.com/alice0775/userChrome.js
-		var stream = Components.classes[
-			"@mozilla.org/network/file-input-stream;1"
-		].createInstance(Components.interfaces.nsIFileInputStream);
-		stream.init(aFile, 0x01, 0, 0);
-	
-		var cvstream = Components.classes[
-			"@mozilla.org/intl/converter-input-stream;1"
-		].createInstance(Components.interfaces.nsIConverterInputStream);
-		cvstream.init(stream, "UTF-8", 1024, Components.interfaces.nsIConverterInputStream.DEFAULT_REPLACEMENT_CHARACTER);
+		var data = "";
+		var fstream = Components.classes["@mozilla.org/network/file-input-stream;1"].
+			createInstance(Components.interfaces.nsIFileInputStream);
+		var cstream = Components.classes["@mozilla.org/intl/converter-input-stream;1"].
+			createInstance(Components.interfaces.nsIConverterInputStream);
+		fstream.init(file, -1, 0, 0);
+		cstream.init(fstream, "UTF-8", 0, 0); // you can use another encoding here if you wish
 		
-		var content = "", data = {};
-		while (cvstream.readString(4096, data)) { content += data.value; }
-		cvstream.close();
-		return content;
+		let read = 0;
+		let str = {};
+		do {
+			read = cstream.readString(0xffffffff, str); // read as much as we can and put it in str.value
+			data += str.value;
+		} while (read != 0);
+		cstream.close(); // this closes fstream
+		return data;
+	}
+	function readBinary(binaryFile){
+		var inputStream = Components
+		.classes["@mozilla.org/network/file-input-stream;1"]
+		.createInstance(Components.interfaces.nsIFileInputStream);
+		inputStream.init(binaryFile, -1, -1, false);
+
+		var binaryStream = Components
+		.classes["@mozilla.org/binaryinputstream;1"]
+		.createInstance(Components.interfaces.nsIBinaryInputStream);
+		binaryStream.setInputStream(inputStream);
+
+		return binaryStream.readBytes(binaryStream.available());
+	}
+
+	function writeBinary(aFile, aData){
+		var foStream = Components.classes["@mozilla.org/network/file-output-stream;1"]
+		.createInstance(Components.interfaces.nsIFileOutputStream);
+		// Use 0x02 | 0x10 when appending to a file
+		foStream.init(aFile, 0x02 | 0x08 | 0x20, parseInt(664, 8), 0); // write, create, truncate
+		foStream.write(aData, aData.length);
+		foStream.close();
+		return aData;
 	}
 	try {
 		// load the modules
@@ -83,7 +107,7 @@
 			"no extra js files will be loaded.");
 			return;
 		}
-		if (!(RJAutoConfig.dir.constructor == String)){
+		if (!(RJAutoConfig.dir.constructor === String)){
 			console.error("RJAutoConfig.json's dir property must be a string"+
 			"no extra js files will be loaded.");
 			return;
@@ -93,8 +117,14 @@
 			"no extra js files will be loaded.");
 			return;
 		}
-		if (!(RJAutoConfig.files.constructor == Array)){
-			console.error("RJAutoConfig.json's files property must be a array"+
+		if (!(RJAutoConfig.files.constructor === Object)){
+			console.error("RJAutoConfig.json's files property must be an object "+
+			"no extra js files will be loaded.");
+			return;
+		}
+
+		if (Object.values(RJAutoConfig.files).find(f=>f.constructor !== Object)){
+			console.error("RJAutoConfig.json's files' properties must be objects "+
 			"no extra js files will be loaded.");
 			return;
 		}
@@ -125,33 +155,54 @@
 		while (RJAutoConfigDir.hasMoreElements())
 		{files.push(RJAutoConfigDir.getNext().QueryInterface(Components.interfaces.nsIFile));}
 
-		files = files.filter(f=>RJAutoConfig.files.includes(f.displayName));
-		RJAutoConfig.files.filter(
-			file=>!files.map(f=>f.displayName).includes(file)
+		var scripts = files.filter(
+			f=>Object.keys(RJAutoConfig.files).includes(f.displayName)
+		).map(f=>({obj:f}));
+		Object.keys(RJAutoConfig.files).filter(
+			file=>!scripts.map(f=>f.obj.displayName).includes(file)
 		).forEach(file=>console.warn(
 			"the file '"+
 			file+
 			"' specified in RJAutoConfig.json was not found.\n"+
 			"skipping the file."
 		));
+
+		// Object.entries(RJAutoConfig.files)
+
+		var currentTime = Date.now();
 		function ConfigJS() {Services.obs.addObserver(this, "chrome-document-global-created", false);}
 		ConfigJS.prototype = {
 			observe: function (aSubject) {
 				aSubject.addEventListener("DOMContentLoaded", this, { once: true });
 			},
 			handleEvent: function (aEvent) {
-				if (!aEvent.originalTarget.defaultView._gBrowser){return;}
-				files.forEach(
+				// aEvent.originalTarget is document
+				// aEvent.originalTarget.defaultView is window
+
+				// exit if the window is not a browserWindow
+				if (!aEvent?.originalTarget?.defaultView?._gBrowser){return;}
+				aEvent.originalTarget.defaultView.RJResources = {
+					readFile,readBinary,ScriptResources:{}
+				};
+				scripts.forEach(
 					file=>{
+						aEvent.originalTarget.defaultView
+						.RJResources.ScriptResources[file.obj.displayName] = {};
 						ScriptLoader.loadSubScript(
-							FileProtocolHandler.getURLSpecFromActualFile(file),
+							// the time property means that there is never a cache hit
+							// this means that you will always get the most up to date
+							// version. this is required as firefox never seems to
+							// clear the cache of these files so it will always use the
+							// first version that it loads
+							FileProtocolHandler.getURLSpecFromActualFile(file.obj)+"?time="+currentTime,
 							aEvent.originalTarget.defaultView
 						);
-						console.log("loaded file ",file.displayName);
+						console.log("loaded file ",file.obj.displayName);
 					}
 				);
 			}
 		};
+		// dont run if in safe mode
 		if (!Services.appinfo.inSafeMode) { new ConfigJS(); }
 	} catch (ex) {
 		(new (ChromeUtils.importESModule(
