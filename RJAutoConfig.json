@@ -1,6 +1,10 @@
 {
 	"dir":"RJAutoConfigFiles",
-	"files":[
-
-	]
+	"scripts":{
+		"commandPallete.js":{
+			"resources":[
+				"commandPallete.html"
+			]
+		}
+	}
 }

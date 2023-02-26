@@ -8,7 +8,7 @@
 
 /* derived from https://www.reddit.com/r/firefox/comments/kilmm2/ and https://github.com/alice0775/userChrome.js*/
 
-(async function(){
+(function(){
 	function readFile(file){
 		// gets the data in the passed in file
 		var data = "";
@@ -58,7 +58,7 @@
 		const { Services } = Components.utils.import("resource://gre/modules/Services.jsm");
 		const FileProtocolHandler = Services.io.getProtocolHandler("file").QueryInterface(Components.interfaces.nsIFileProtocolHandler);
 		const ScriptLoader = Services.scriptloader
-		
+
 		// get the UserAppData firefox directory i.e. "C:\\Users\\USERNAME\\AppData\\Roaming\\Mozilla\\Firefox"
 		var dir = Services.dirsvc.get("UAppData", Components.interfaces.nsIFile).directoryEntries; 
 		var files = [];
@@ -112,24 +112,24 @@
 			"no extra js files will be loaded.");
 			return;
 		}
-		if (!("files" in RJAutoConfig)){
-			console.error("RJAutoConfig.json missing the files property "+
+		if (!("scripts" in RJAutoConfig)){
+			console.error("RJAutoConfig.json missing the scripts property "+
 			"no extra js files will be loaded.");
 			return;
 		}
-		if (!(RJAutoConfig.files.constructor === Object)){
-			console.error("RJAutoConfig.json's files property must be an object "+
-			"no extra js files will be loaded.");
-			return;
-		}
-
-		if (Object.values(RJAutoConfig.files).find(f=>f.constructor !== Object)){
-			console.error("RJAutoConfig.json's files' properties must be objects "+
+		if (!(RJAutoConfig.scripts.constructor === Object)){
+			console.error("RJAutoConfig.json's scripts property must be an object "+
 			"no extra js files will be loaded.");
 			return;
 		}
 
-		RJAutoConfigDir = files.filter(f=>f.displayName===RJAutoConfig.dir);
+		if (Object.values(RJAutoConfig.scripts).find(f=>f.constructor !== Object)){
+			console.error("RJAutoConfig.json's scripts' properties must be objects "+
+			"no extra js files will be loaded.");
+			return;
+		}
+
+		var RJAutoConfigDir = files.filter(f=>f.displayName===RJAutoConfig.dir);
 		if (RJAutoConfigDir.length==0){
 			console.error(
 				"the directory '"+
@@ -150,15 +150,16 @@
 			return;
 		}
 		// get the RJAutoConfig dir object
-		RJAutoConfigDir = RJAutoConfigDir[0].QueryInterface(Components.interfaces.nsIFile).directoryEntries;
+		RJAutoConfigDir = RJAutoConfigDir[0].QueryInterface(Components.interfaces.nsIFile)
+		var RJAutoConfigDirIttr = RJAutoConfigDir.directoryEntries;
 		files = [];
-		while (RJAutoConfigDir.hasMoreElements())
-		{files.push(RJAutoConfigDir.getNext().QueryInterface(Components.interfaces.nsIFile));}
+		while (RJAutoConfigDirIttr.hasMoreElements())
+		{files.push(RJAutoConfigDirIttr.getNext().QueryInterface(Components.interfaces.nsIFile));}
 
 		var scripts = files.filter(
-			f=>Object.keys(RJAutoConfig.files).includes(f.displayName)
+			f=>Object.keys(RJAutoConfig.scripts).includes(f.displayName)
 		).map(f=>({obj:f}));
-		Object.keys(RJAutoConfig.files).filter(
+		Object.keys(RJAutoConfig.scripts).filter(
 			file=>!scripts.map(f=>f.obj.displayName).includes(file)
 		).forEach(file=>console.warn(
 			"the file '"+
@@ -167,7 +168,15 @@
 			"skipping the file."
 		));
 
-		// Object.entries(RJAutoConfig.files)
+		Object.entries(RJAutoConfig.scripts).filter(s=>"resources" in s[1]).forEach(
+			s=>scripts[
+				scripts.findIndex(s=>s.obj.displayName == s[0])
+			].resources = s[1].resources.map(
+				r=>r.split("/").reduce(
+					(acc,d)=>(acc.append(d),acc),RJAutoConfigDir.clone()
+				)
+			)
+		);
 
 		var currentTime = Date.now();
 		function ConfigJS() {Services.obs.addObserver(this, "chrome-document-global-created", false);}
@@ -182,7 +191,7 @@
 				// exit if the window is not a browserWindow
 				if (!aEvent?.originalTarget?.defaultView?._gBrowser){return;}
 				aEvent.originalTarget.defaultView.RJResources = {
-					readFile,readBinary,ScriptResources:{}
+					readFile,readBinary,ScriptResources:{},RJAutoConfigDir
 				};
 				scripts.forEach(
 					file=>{
