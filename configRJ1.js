@@ -159,6 +159,7 @@
 		var scripts = files.filter(
 			f=>Object.keys(RJAutoConfig.scripts).includes(f.displayName)
 		).map(f=>({obj:f}));
+
 		Object.keys(RJAutoConfig.scripts).filter(
 			file=>!scripts.map(f=>f.obj.displayName).includes(file)
 		).forEach(file=>console.warn(
@@ -169,13 +170,16 @@
 		));
 
 		Object.entries(RJAutoConfig.scripts).filter(s=>"resources" in s[1]).forEach(
-			s=>scripts[
-				scripts.findIndex(s=>s.obj.displayName == s[0])
-			].resources = s[1].resources.map(
-				r=>r.split("/").reduce(
-					(acc,d)=>(acc.append(d),acc),RJAutoConfigDir.clone()
-				)
-			)
+			s=>{
+				var index = scripts.findIndex(script=>script.obj.displayName == s[0]);
+				if (index < 0){return;}// if it dosent exist ignore
+				scripts[index].requestedResources = s[1].resources.map(
+					r=>[r,r.split("/").reduce(
+						(acc,pathSection)=>(acc.append(pathSection),acc),
+						RJAutoConfigDir.clone()
+					)]
+				).reduce((acc,files)=>(acc[files[0]]=files[1],acc),{})
+			}
 		);
 
 		var currentTime = Date.now();
@@ -196,7 +200,9 @@
 				scripts.forEach(
 					file=>{
 						aEvent.originalTarget.defaultView
-						.RJResources.ScriptResources[file.obj.displayName] = {};
+						.RJResources.ScriptResources[file.obj.displayName] = {
+							requestedResources: file.requestedResources
+						};
 						ScriptLoader.loadSubScript(
 							// the time property means that there is never a cache hit
 							// this means that you will always get the most up to date
