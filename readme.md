@@ -42,6 +42,6 @@ only tested on firefox 110.0 (64-bit)
 
 ## how it works
 
-the `config-prefs.js` makes regesters the `configRJ1.js` file as a file to run on startup then that loads the `RJAutoConfig.json` and finds the files in the `RJAutoConfigFiles` directory
+the `config-prefs.js` registers the `configRJ1.js` file as a file to run on startup then that loads the `RJAutoConfig.json` and finds the files in the `RJAutoConfigFiles` directory and runs them
 
 much of this knowledge comes from https://www.userchrome.org and https://github.com/alice0775/userChrome.js
