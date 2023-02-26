@@ -6,12 +6,13 @@ only tested on firefox 110.0 (64-bit)
 
 > at `C:\Program Files\Mozilla Firefox`(or where firefox is installed)`\defaults\pref`
 > 
-> a new symlink `config-prefs.js`
+> a new hardlink `config-prefs.js`
 > 
 > (windows commands example) providing you are in the diriectory for this git
 > ```bat
-> mklink "C:\Program Files\Mozilla Firefox\defaults\pref\config-prefs.js" ".\config-prefs.js"
+> mklink /H "C:\Program Files\Mozilla Firefox\defaults\pref\config-prefs.js" ".\config-prefs.js"
 > ```
+> note that this one is a hard link as firefox checks for symlinks and ignores them for some reason so to get it to work you can use a hard link
 
 > at `C:\Program Files\Mozilla Firefox`(or where firefox is installed)
 > 

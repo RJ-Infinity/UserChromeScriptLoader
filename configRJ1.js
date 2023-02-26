@@ -1,6 +1,14 @@
 // commented line is important??
-/* Single function userChrome.js loader to run the above init function (no external scripts)
-derived from https://www.reddit.com/r/firefox/comments/kilmm2/ and https://github.com/alice0775/userChrome.js*/
+
+/*
+	this is a script loader for firefox UserChrome.js
+	it loads the `RJAutoConfig.jon` file in the user appdata folder it then reads the
+	file location and files specified there and loads them onto firefox windows loaded
+*/
+
+/* derived from https://www.reddit.com/r/firefox/comments/kilmm2/ and https://github.com/alice0775/userChrome.js*/
+
+
 
 function readFile(aFile){
 	// gets the data in the passed in file
