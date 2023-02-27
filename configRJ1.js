@@ -9,55 +9,70 @@
 /* derived from https://www.reddit.com/r/firefox/comments/kilmm2/ and https://github.com/alice0775/userChrome.js*/
 
 (function(){
-	function readFile(file){
-		// gets the data in the passed in file
-		var data = "";
-		var fstream = Components.classes["@mozilla.org/network/file-input-stream;1"].
-			createInstance(Components.interfaces.nsIFileInputStream);
-		var cstream = Components.classes["@mozilla.org/intl/converter-input-stream;1"].
-			createInstance(Components.interfaces.nsIConverterInputStream);
-		fstream.init(file, -1, 0, 0);
-		cstream.init(fstream, "UTF-8", 0, 0); // you can use another encoding here if you wish
-		
-		let read = 0;
-		let str = {};
-		do {
-			read = cstream.readString(0xffffffff, str); // read as much as we can and put it in str.value
-			data += str.value;
-		} while (read != 0);
-		cstream.close(); // this closes fstream
-		return data;
-	}
-	function readBinary(binaryFile){
-		var inputStream = Components
-		.classes["@mozilla.org/network/file-input-stream;1"]
-		.createInstance(Components.interfaces.nsIFileInputStream);
-		inputStream.init(binaryFile, -1, -1, false);
-
-		var binaryStream = Components
-		.classes["@mozilla.org/binaryinputstream;1"]
-		.createInstance(Components.interfaces.nsIBinaryInputStream);
-		binaryStream.setInputStream(inputStream);
-
-		return binaryStream.readBytes(binaryStream.available());
-	}
-
-	function writeBinary(aFile, aData){
-		var foStream = Components.classes["@mozilla.org/network/file-output-stream;1"]
-		.createInstance(Components.interfaces.nsIFileOutputStream);
-		// Use 0x02 | 0x10 when appending to a file
-		foStream.init(aFile, 0x02 | 0x08 | 0x20, parseInt(664, 8), 0); // write, create, truncate
-		foStream.write(aData, aData.length);
-		foStream.close();
-		return aData;
-	}
 	try {
 		// load the modules
 		const { ConsoleAPI } = ChromeUtils.importESModule("resource://gre/modules/Console.sys.mjs");
 		const console = new ConsoleAPI({maxLogLevel:false});
 		const { Services } = Components.utils.import("resource://gre/modules/Services.jsm");
 		const FileProtocolHandler = Services.io.getProtocolHandler("file").QueryInterface(Components.interfaces.nsIFileProtocolHandler);
-		const ScriptLoader = Services.scriptloader
+		const ScriptLoader = Services.scriptloader;
+		const currentTime = Number(Date.now());
+
+
+		function readFile(file){
+			// gets the data in the passed in file
+			var data = "";
+			var fstream = Components.classes["@mozilla.org/network/file-input-stream;1"].
+				createInstance(Components.interfaces.nsIFileInputStream);
+			var cstream = Components.classes["@mozilla.org/intl/converter-input-stream;1"].
+				createInstance(Components.interfaces.nsIConverterInputStream);
+			fstream.init(file, -1, 0, 0);
+			cstream.init(fstream, "UTF-8", 0, 0); // you can use another encoding here if you wish
+			
+			let read = 0;
+			let str = {};
+			do {
+				read = cstream.readString(0xffffffff, str); // read as much as we can and put it in str.value
+				data += str.value;
+			} while (read != 0);
+			cstream.close(); // this closes fstream
+			return data;
+		}
+		function readBinary(binaryFile){
+			var inputStream = Components
+			.classes["@mozilla.org/network/file-input-stream;1"]
+			.createInstance(Components.interfaces.nsIFileInputStream);
+			inputStream.init(binaryFile, -1, -1, false);
+
+			var binaryStream = Components
+			.classes["@mozilla.org/binaryinputstream;1"]
+			.createInstance(Components.interfaces.nsIBinaryInputStream);
+			binaryStream.setInputStream(inputStream);
+
+			return binaryStream.readBytes(binaryStream.available());
+		}
+
+		function writeBinary(aFile, aData){
+			var foStream = Components.classes["@mozilla.org/network/file-output-stream;1"]
+			.createInstance(Components.interfaces.nsIFileOutputStream);
+			// Use 0x02 | 0x10 when appending to a file
+			foStream.init(aFile, 0x02 | 0x08 | 0x20, parseInt(664, 8), 0); // write, create, truncate
+			foStream.write(aData, aData.length);
+			foStream.close();
+			return aData;
+		}
+		function loadScript(fileObj,ctx){
+			if (ctx===undefined){ctx = {};}
+			// the time property means that there is never a cache hit
+			// this means that you will always get the most up to date
+			// version. this is required as firefox never seems to
+			// clear the cache of these files so it will always use the
+			// first version that it loads
+			ScriptLoader.loadSubScript(FileProtocolHandler.getURLSpecFromActualFile(
+				fileObj
+			)+"?time="+currentTime,ctx);
+			return ctx;
+		}
 
 		// get the UserAppData firefox directory i.e. "C:\\Users\\USERNAME\\AppData\\Roaming\\Mozilla\\Firefox"
 		var dir = Services.dirsvc.get("UAppData", Components.interfaces.nsIFile).directoryEntries; 
@@ -182,7 +197,6 @@
 			}
 		);
 
-		var currentTime = Date.now();
 		function ConfigJS() {Services.obs.addObserver(this, "chrome-document-global-created", false);}
 		ConfigJS.prototype = {
 			observe: function (aSubject) {
@@ -195,7 +209,7 @@
 				// exit if the window is not a browserWindow
 				if (!aEvent?.originalTarget?.defaultView?._gBrowser){return;}
 				aEvent.originalTarget.defaultView.RJResources = {
-					readFile,readBinary,ScriptResources:{},RJAutoConfigDir
+					readFile,readBinary,loadScript,ScriptResources:{},RJAutoConfigDir
 				};
 				scripts.forEach(
 					file=>{
@@ -203,15 +217,7 @@
 						.RJResources.ScriptResources[file.obj.displayName] = {
 							requestedResources: file.requestedResources
 						};
-						ScriptLoader.loadSubScript(
-							// the time property means that there is never a cache hit
-							// this means that you will always get the most up to date
-							// version. this is required as firefox never seems to
-							// clear the cache of these files so it will always use the
-							// first version that it loads
-							FileProtocolHandler.getURLSpecFromActualFile(file.obj)+"?time="+currentTime,
-							aEvent.originalTarget.defaultView
-						);
+						loadScript(file.obj,aEvent.originalTarget.defaultView);
 						console.log("loaded file ",file.obj.displayName);
 					}
 				);
