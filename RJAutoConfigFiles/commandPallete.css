@@ -1,0 +1,52 @@
+#RJPalleteContainer {
+	position: absolute;
+	top: 0;
+	left: 50%;
+	transform: translateX(-50%);
+	display: none;
+	width: 50%;
+	background: #f3f3f3;
+	border: 1px solid black;
+	border-top: none;
+	overflow: hidden;
+	border-radius: 0 0 5px 5px;
+	box-sizing: border-box;
+	grid-template-rows: min-content 1fr;
+	height: min-content;
+	max-height: 50vh;
+	font-size: 1.2rem;
+}
+#RJPalleteContainer:focus-within,#RJPalleteContainer.open{
+	display: grid;
+}
+
+#RJPalleteContainer *{
+	box-sizing: border-box;
+}
+
+#RJCommandSearch {
+	display: block;
+	border-radius: 5px;
+	border: 1px solid black;
+}
+#RJCommandSearch:focus-visible{
+	outline: transparent;
+	border-color: blue;
+}
+.RJCommandPalleteItem{
+	background-color: #f3f3f3;
+	width: 100%;
+	border: none;
+	border-radius: 5px;
+	margin: 1px;
+}
+.RJCommandPalleteItem:focus{
+	background-color: blue;
+	outline: transparent;
+}
+
+#RJCommandResults{
+	overflow-y: scroll;
+	padding: 0 5px;
+	margin-bottom: 0;
+}

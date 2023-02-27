@@ -3,7 +3,8 @@
 	"scripts":{
 		"commandPallete.js":{
 			"resources":[
-				"commandPallete.html"
+				"commandPallete.css",
+				"fuzzysort.min.js"
 			]
 		}
 	}
